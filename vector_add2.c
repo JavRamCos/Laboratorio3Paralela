@@ -18,25 +18,30 @@
 #include <stdlib.h>
 
 void Read_n(int* n_p);
+void Read_RandMax(int* randmax);
 void Allocate_vectors(double** x_pp, double** y_pp, double** z_pp, int n);
-void Read_vector(double a[], int n, char vec_name[]);
+void Generate_vector(double a[], int n, char vec_name[],int randmax);
 void Print_vector(double b[], int n, char title[]);
+void PrintTopDown_vector(double b[], int n, char title[]);
 void Vector_sum(double x[], double y[], double z[], int n);
 
 /*---------------------------------------------------------------------*/
 int main(void) {
-   int n;
+   int n, randmax;
    double *x, *y, *z;
 
    Read_n(&n);
+   Read_RandMax(&randmax);
    Allocate_vectors(&x, &y, &z, n);
    
-   Read_vector(x, n, "x");
-   Read_vector(y, n, "y");
-   
+   Generate_vector(x, n, "x",randmax);
+   Generate_vector(y, n, "y",randmax);
+   PrintTopDown_vector(x, n, "Vector x");
+   PrintTopDown_vector(y, n, "Vector y");
+
    Vector_sum(x, y, z, n);
 
-   Print_vector(z, n, "The sum is");
+   // Print_vector(z, n, "The sum is");
 
    free(x);
    free(y);
@@ -58,8 +63,26 @@ void Read_n(int* n_p /* out */) {
    if (*n_p <= 0) {
       fprintf(stderr, "Order should be positive\n");
       exit(-1);
+   } else if(*n_p < 100000) {
+      fprintf(stderr,"Order should be > 100,000\n");
    }
 }  /* Read_n */
+
+/*---------------------------------------------------------------------
+ * Function:  Read_RandMax
+ * Purpose:   Get the max number for random
+ * Out arg:   randmax:  random max number
+ *
+ * Errors:    If randmax <= 0, the program terminates
+ */
+void Read_RandMax(int* randmax /* out */) {
+   printf("What's the max number for random?\n");
+   scanf("%d", randmax);
+   if (randmax <= 0) {
+      fprintf(stderr, "Max number should be positive\n");
+      exit(-1);
+   }
+}  /* Read_RandMax */
 
 /*---------------------------------------------------------------------
  * Function:  Allocate_vectors
@@ -84,20 +107,21 @@ void Allocate_vectors(
 }  /* Allocate_vectors */
 
 /*---------------------------------------------------------------------
- * Function:  Read_vector
+ * Function:  Generate_vector
  * Purpose:   Read a vector from stdin
  * In args:   n:  order of the vector
  *            vec_name:  name of vector (e.g., x)
  * Out arg:   a:  the vector to be read in
  */
-void Read_vector(
+void Generate_vector(
       double  a[]         /* out */, 
       int     n           /* in  */, 
-      char    vec_name[]  /* in  */) {
+      char    vec_name[]  /* in  */,
+      int     randmax     /* in  */) {
    int i;
-   printf("Enter the vector %s\n", vec_name);
    for (i = 0; i < n; i++)
-      scanf("%lf", &a[i]);
+      a[i] = rand() % randmax;
+   printf("Vector %s generated ...\n", vec_name);
 }  /* Read_vector */  
 
 /*---------------------------------------------------------------------
@@ -117,6 +141,29 @@ void Print_vector(
       printf("%f ", b[i]);
    printf("\n");
 }  /* Print_vector */
+
+/*---------------------------------------------------------------------
+ * Function:  PrintTopDown_vector
+ * Purpose:   Print the contents of a vector
+ * In args:   b:  the vector to be printed
+ *            n:  the order of the vector
+ *            title:  title for print out
+ */
+void PrintTopDown_vector(
+      double  b[]     /* in */, 
+      int     n       /* in */, 
+      char    title[] /* in */) {
+   int i;
+   printf("%s\n", title);
+   printf("0 - 10: [");
+   for(int i = 0;i < 9;i++) 
+      printf("%lf,",b[i]);
+   printf("%lf]\n",b[9]);
+   printf("%d - %d: [",n-10,n);
+   for(int i = n-10;i < n-1;i++) 
+      printf("%lf,",b[i]);
+   printf("%lf]\n",b[n-1]);
+}  /* PrintTopDown_vector */
 
 /*---------------------------------------------------------------------
  * Function:  Vector_sum
