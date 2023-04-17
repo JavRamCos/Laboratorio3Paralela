@@ -30,10 +30,12 @@ void Check_for_error(int local_ok, char fname[], char message[],
       MPI_Comm comm);
 void Read_n(int* n_p, int* local_n_p, int my_rank, int comm_sz,
       MPI_Comm comm);
+void Read_RandMax(int* randmax, int my_rank, int comm_sz, 
+      MPI_Comm comm);
 void Allocate_vectors(double** local_x_pp, double** local_y_pp,
       double** local_z_pp, int local_n, MPI_Comm comm);
-void Read_vector(double local_a[], int local_n, int n, char vec_name[],
-      int my_rank, MPI_Comm comm);
+void Generate_vector(double local_a[], int local_n, int n, char vec_name[],
+      int my_rank, MPI_Comm comm,int randmax);
 void Print_vector(double local_b[], int local_n, int n, char title[],
       int my_rank, MPI_Comm comm);
 void Parallel_vector_sum(double local_x[], double local_y[],
@@ -42,7 +44,7 @@ void Parallel_vector_sum(double local_x[], double local_y[],
 
 /*-------------------------------------------------------------------*/
 int main(void) {
-   int n, local_n;
+   int n, local_n, randmax;
    int comm_sz, my_rank;
    double *local_x, *local_y, *local_z;
    MPI_Comm comm;
@@ -53,15 +55,16 @@ int main(void) {
    MPI_Comm_size(comm, &comm_sz);
    MPI_Comm_rank(comm, &my_rank);
 
-   //Read_n(&n, &local_n, my_rank, comm_sz, comm);
-   n = 10000000;
+   Read_n(&n, &local_n, my_rank, comm_sz, comm);
+   Read_RandMax(&randmax, my_rank, comm_sz, comm);
+   // n = 10000000;
    tstart = MPI_Wtime();
    Allocate_vectors(&local_x, &local_y, &local_z, local_n, comm);
 
-   Read_vector(local_x, local_n, n, "x", my_rank, comm);
-   //Print_vector(local_x, local_n, n, "x is", my_rank, comm);
-   Read_vector(local_y, local_n, n, "y", my_rank, comm);
-   //Print_vector(local_y, local_n, n, "y is", my_rank, comm);
+   Generate_vector(local_x, local_n, n, "x", my_rank, comm, randmax);
+   Print_vector(local_x, local_n, n, "x is", my_rank, comm);
+   Generate_vector(local_y, local_n, n, "y", my_rank, comm, randmax);
+   Print_vector(local_y, local_n, n, "y is", my_rank, comm);
 
    Parallel_vector_sum(local_x, local_y, local_z, local_n);
    tend = MPI_Wtime();
@@ -144,11 +147,40 @@ void Read_n(
       scanf("%d", n_p);
    }
    MPI_Bcast(n_p, 1, MPI_INT, 0, comm);
-   if (*n_p <= 0 || *n_p % comm_sz != 0) local_ok = 0;
+   if (*n_p < 100000 || *n_p % comm_sz != 0) local_ok = 0;
    Check_for_error(local_ok, fname,
-         "n should be > 0 and evenly divisible by comm_sz", comm);
+         "n should be >= 100,000 and evenly divisible by comm_sz", comm);
    *local_n_p = *n_p/comm_sz;
 }  /* Read_n */
+
+/*-------------------------------------------------------------------
+ * Function:  Read_RandMax
+ * Purpose:   Read limit for random numbers.
+ * In args:   my_rank:    process rank in communicator
+ *            comm_sz:    number of processes in communicator
+ *            comm:       communicator containing all the processes
+ *                        calling Read_n
+ * Out args:  randmax:        global value of randmax
+ *
+ * Errors:    randmax is < 0
+ */
+void Read_RandMax(
+      int*      randmax        /* out */,
+      int       my_rank    /* in  */,
+      int       comm_sz    /* in  */,
+      MPI_Comm  comm       /* in  */) {
+   int local_ok = 1;
+   char *fname = "Read_RandMax";
+
+   if (my_rank == 0) {
+      printf("What's the max number for random?\n");
+      scanf("%d", randmax);
+   }
+   MPI_Bcast(randmax, 1, MPI_INT, 0, comm);
+   if (*randmax < 0) local_ok = 0;
+   Check_for_error(local_ok, fname,
+         "randmax should be >= 100,000", comm);
+}  /* Read_RandMax */
 
 
 /*-------------------------------------------------------------------
@@ -182,7 +214,7 @@ void Allocate_vectors(
 
 
 /*-------------------------------------------------------------------
- * Function:   Read_vector
+ * Function:   Generate_vector
  * Purpose:    Read a vector from stdin on process 0 and distribute
  *             among the processes using a block distribution.
  * In args:    local_n:  size of local vectors
@@ -190,6 +222,7 @@ void Allocate_vectors(
  *             vec_name: name of vector being read (e.g., "x")
  *             my_rank:  calling process' rank in comm
  *             comm:     communicator containing calling processes
+ *             randmax: global variable for random limit
  * Out arg:    local_a:  local vector read
  *
  * Errors:     if the malloc on process 0 for temporary storage
@@ -199,18 +232,19 @@ void Allocate_vectors(
  *    This function assumes a block distribution and the order
  *   of the vector evenly divisible by comm_sz.
  */
-void Read_vector(
+void Generate_vector(
       double    local_a[]   /* out */,
       int       local_n     /* in  */,
       int       n           /* in  */,
       char      vec_name[]  /* in  */,
       int       my_rank     /* in  */,
-      MPI_Comm  comm        /* in  */) {
+      MPI_Comm  comm        /* in  */,
+      int       randmax         /* in  */) {
 
    double* a = NULL;
    int i;
    int local_ok = 1;
-   char* fname = "Read_vector";
+   char* fname = "Generate_vector";
 
    if (my_rank == 0) {
       a = malloc(n*sizeof(double));
@@ -220,7 +254,7 @@ void Read_vector(
       //printf("Enter the vector %s\n", vec_name);
       //fill vec with indez
       for (i = 0; i < n; i++)
-         a[i] = i;
+         a[i] = rand() % randmax;
       MPI_Scatter(a, local_n, MPI_DOUBLE, local_a, local_n, MPI_DOUBLE, 0,
          comm);
       free(a);
@@ -230,7 +264,7 @@ void Read_vector(
       MPI_Scatter(a, local_n, MPI_DOUBLE, local_a, local_n, MPI_DOUBLE, 0,
          comm);
    }
-}  /* Read_vector */
+}  /* Generate_vector */
 
 
 /*-------------------------------------------------------------------
