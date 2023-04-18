@@ -36,7 +36,7 @@ void Allocate_vectors(double** local_x_pp, double** local_y_pp,
       double** local_z_pp, int local_n, MPI_Comm comm);
 void Generate_vector(double local_a[], int local_n, int n, char vec_name[],
       int my_rank, MPI_Comm comm,int randmax);
-void Print_vector(double local_b[], int local_n, int n, char title[],
+void PrintTopDown_vector(double local_b[], int local_n, int n, char title[],
       int my_rank, MPI_Comm comm);
 void Parallel_vector_sum(double local_x[], double local_y[],
       double local_z[], int local_n);
@@ -62,14 +62,14 @@ int main(void) {
    Allocate_vectors(&local_x, &local_y, &local_z, local_n, comm);
 
    Generate_vector(local_x, local_n, n, "x", my_rank, comm, randmax);
-   Print_vector(local_x, local_n, n, "x is", my_rank, comm);
+   PrintTopDown_vector(local_x, local_n, n, "Vector x", my_rank, comm);
    Generate_vector(local_y, local_n, n, "y", my_rank, comm, randmax);
-   Print_vector(local_y, local_n, n, "y is", my_rank, comm);
+   PrintTopDown_vector(local_y, local_n, n, "Vector y", my_rank, comm);
 
    Parallel_vector_sum(local_x, local_y, local_z, local_n);
    tend = MPI_Wtime();
 
-   //Print_vector(local_z, local_n, n, "The sum is", my_rank, comm);
+   //PrintTopDown_vector(local_z, local_n, n, "The sum is", my_rank, comm);
    if(my_rank==0)
     printf("\nTook %f ms to run\n", (tend-tstart)*1000);
 
@@ -268,14 +268,14 @@ void Generate_vector(
 
 
 /*-------------------------------------------------------------------
- * Function:  Print_vector
+ * Function:  PrintTopDown_vector
  * Purpose:   Print a vector that has a block distribution to stdout
  * In args:   local_b:  local storage for vector to be printed
  *            local_n:  order of local vectors
  *            n:        order of global vector (local_n*comm_sz)
  *            title:    title to precede print out
  *            comm:     communicator containing processes calling
- *                      Print_vector
+ *                      PrintTopDown_vector
  *
  * Error:     if process 0 can't allocate temporary storage for
  *            the full vector, the program terminates.
@@ -284,7 +284,7 @@ void Generate_vector(
  *    Assumes order of vector is evenly divisible by the number of
  *    processes
  */
-void Print_vector(
+void PrintTopDown_vector(
       double    local_b[]  /* in */,
       int       local_n    /* in */,
       int       n          /* in */,
@@ -295,7 +295,7 @@ void Print_vector(
    double* b = NULL;
    int i;
    int local_ok = 1;
-   char* fname = "Print_vector";
+   char* fname = "PrintTopDown_vector";
 
    if (my_rank == 0) {
       b = malloc(n*sizeof(double));
@@ -305,9 +305,14 @@ void Print_vector(
       MPI_Gather(local_b, local_n, MPI_DOUBLE, b, local_n, MPI_DOUBLE,
             0, comm);
       printf("%s\n", title);
-      for (i = 0; i < n; i++)
-         printf("%f ", b[i]);
-      printf("\n");
+      printf("0 - 10: [");
+      for (i = 0; i < 9; i++)
+         printf("%lf,", b[i]);
+      printf("%lf]\n", b[9]);
+      printf("%d - %d: [",n-10,n);
+      for (i = n-10; i < n-1; i++)
+         printf("%lf,", b[i]);
+      printf("%lf]\n", b[n-1]);
       free(b);
    } else {
       Check_for_error(local_ok, fname, "Can't allocate temporary vector",
@@ -315,7 +320,7 @@ void Print_vector(
       MPI_Gather(local_b, local_n, MPI_DOUBLE, b, local_n, MPI_DOUBLE, 0,
          comm);
    }
-}  /* Print_vector */
+}  /* PrintTopDown_vector */
 
 
 /*-------------------------------------------------------------------
