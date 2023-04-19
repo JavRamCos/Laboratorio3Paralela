@@ -16,6 +16,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 void Read_n(int* n_p);
 void Read_RandMax(int* randmax);
@@ -27,6 +28,7 @@ void Vector_sum(double x[], double y[], double z[], int n);
 
 /*---------------------------------------------------------------------*/
 int main(void) {
+   clock_t start = clock();
    int n, randmax;
    double *x, *y, *z;
 
@@ -47,6 +49,11 @@ int main(void) {
    free(y);
    free(z);
 
+   clock_t difference = clock() - start;
+   int msec = difference * 1000 / CLOCKS_PER_SEC;
+
+   printf("\nTook %d.%d s to run\n",msec/1000,msec%1000);
+
    return 0;
 }  /* main */
 
@@ -63,8 +70,6 @@ void Read_n(int* n_p /* out */) {
    if (*n_p <= 0) {
       fprintf(stderr, "Order should be positive\n");
       exit(-1);
-   } else if(*n_p < 100000) {
-      fprintf(stderr,"Order should be > 100,000\n");
    }
 }  /* Read_n */
 

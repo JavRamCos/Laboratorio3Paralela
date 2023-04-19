@@ -48,7 +48,7 @@ int main(void) {
    int comm_sz, my_rank;
    double *local_x, *local_y, *local_z;
    MPI_Comm comm;
-   double tstart, tend;
+   int tstart, tend;
 
    MPI_Init(NULL, NULL);
    comm = MPI_COMM_WORLD;
@@ -70,12 +70,13 @@ int main(void) {
    tend = MPI_Wtime();
 
    //PrintTopDown_vector(local_z, local_n, n, "The sum is", my_rank, comm);
-   if(my_rank==0)
-    printf("\nTook %f ms to run\n", (tend-tstart)*1000);
 
    free(local_x);
    free(local_y);
    free(local_z);
+
+   if(my_rank==0)
+    printf("\nTook %d.%d s to run\n", (tend-tstart)/1000,(tend-tstart)%1000);
 
    MPI_Finalize();
 
@@ -147,7 +148,7 @@ void Read_n(
       scanf("%d", n_p);
    }
    MPI_Bcast(n_p, 1, MPI_INT, 0, comm);
-   if (*n_p < 100000 || *n_p % comm_sz != 0) local_ok = 0;
+   if (*n_p < 0 || *n_p % comm_sz != 0) local_ok = 0;
    Check_for_error(local_ok, fname,
          "n should be >= 100,000 and evenly divisible by comm_sz", comm);
    *local_n_p = *n_p/comm_sz;
