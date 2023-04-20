@@ -44,7 +44,7 @@ void Read_Scalar(int* scalar, int my_rank, int comm_sz,
 void Parallel_vector_scalar(int scalar, double local_arr[], int local_n, 
       int my_rank);
 void Parallel_vector_dot(double local_x[], double local_y[],
-      int local_n, int my_rank, int* result, MPI_Comm comm);
+      int local_n, int my_rank, double* result, MPI_Comm comm);
 void Display_dot_result(int my_rank, double result);
 
 
@@ -82,7 +82,7 @@ int main(void) {
    PrintTopDown_vector(local_y, local_n, n, "Vector y by scalar", my_rank, comm);
 
    // dot product
-   int result;
+   double result; // Cambiar int result a double result
    Parallel_vector_dot(local_x,local_y,local_n,my_rank,&result,comm);
    Display_dot_result(my_rank,result);
 
@@ -396,22 +396,21 @@ void Parallel_vector_scalar(
  * Out arg:   result:  local storage for the dot product of the two vectors
  */
 void Parallel_vector_dot(
-      double  local_x[]  /* in  */,
-      double  local_y[]  /* in  */,
-      int     local_n    /* in  */,
-      int     my_rank    /* in  */,
-      int*    result     /* out */,
-      MPI_Comm  comm     /* in */) {
-   int local_sum = 0;
-   int local_i;
-   int local_ok = 1;
-   int* b = NULL;
-   char* fname = "Parallel_vector_dot";
+      double    local_x[]   /* in  */,
+      double    local_y[]   /* in  */,
+      int       local_n     /* in  */,
+      int       my_rank     /* in  */,
+      double*   result      /* out */,
+      MPI_Comm  comm        /* in  */) {
 
-   for(local_i = 0;local_i < local_n;local_i++) {
-      local_sum += local_x[local_i] * local_y[local_i];
-   }
-   
+   double local_dot = 0.0;
+   int i;
+
+   for (i = 0; i < local_n; i++)
+      local_dot += local_x[i]*local_y[i];
+
+   MPI_Reduce(&local_dot, result, 1, MPI_DOUBLE, MPI_SUM, 0, comm); // Utilizar MPI_Reduce para sumar las sumas locales
+
 }  /* Parallel_vector_dot */
 
 /*-------------------------------------------------------------------
