@@ -409,7 +409,8 @@ void Parallel_vector_dot(
    for (i = 0; i < local_n; i++)
       local_dot += local_x[i]*local_y[i];
 
-   MPI_Reduce(&local_dot, result, 1, MPI_DOUBLE, MPI_SUM, 0, comm); // Utilizar MPI_Reduce para sumar las sumas locales
+   
+   MPI_Reduce(&local_dot, result, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
 
 }  /* Parallel_vector_dot */
 
