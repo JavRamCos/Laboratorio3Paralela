@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
+#include <time.h>
 
 void Check_for_error(int local_ok, char fname[], char message[],
       MPI_Comm comm);
@@ -38,17 +39,23 @@ void Generate_vector(double local_a[], int local_n, int n, char vec_name[],
       int my_rank, MPI_Comm comm,int randmax);
 void PrintTopDown_vector(double local_b[], int local_n, int n, char title[],
       int my_rank, MPI_Comm comm);
-void Parallel_vector_sum(double local_x[], double local_y[],
-      double local_z[], int local_n);
+void Read_Scalar(int* scalar, int my_rank, int comm_sz, 
+      MPI_Comm comm);
+void Parallel_vector_scalar(int scalar, double local_arr[], int local_n, 
+      int my_rank);
+void Parallel_vector_dot(double local_x[], double local_y[],
+      int local_n, int my_rank, int* result, MPI_Comm comm);
+void Display_dot_result(int my_rank, double result);
 
 
 /*-------------------------------------------------------------------*/
 int main(void) {
+   srand(time(NULL));
    int n, local_n, randmax;
    int comm_sz, my_rank;
    double *local_x, *local_y, *local_z;
    MPI_Comm comm;
-   int tstart, tend;
+   double tstart, tend;
 
    MPI_Init(NULL, NULL);
    comm = MPI_COMM_WORLD;
@@ -66,17 +73,26 @@ int main(void) {
    Generate_vector(local_y, local_n, n, "y", my_rank, comm, randmax);
    PrintTopDown_vector(local_y, local_n, n, "Vector y", my_rank, comm);
 
-   Parallel_vector_sum(local_x, local_y, local_z, local_n);
-   tend = MPI_Wtime();
+   // Scalar Multiplication
+   int scalar;
+   Read_Scalar(&scalar, my_rank, comm_sz, comm);
+   Parallel_vector_scalar(scalar, local_x, local_n, my_rank);
+   PrintTopDown_vector(local_x, local_n, n, "Vector x by scalar", my_rank, comm);
+   Parallel_vector_scalar(scalar, local_y, local_n, my_rank);
+   PrintTopDown_vector(local_y, local_n, n, "Vector y by scalar", my_rank, comm);
 
-   //PrintTopDown_vector(local_z, local_n, n, "The sum is", my_rank, comm);
+   // dot product
+   int result;
+   Parallel_vector_dot(local_x,local_y,local_n,my_rank,&result,comm);
+   Display_dot_result(my_rank,result);
+
+   tend = MPI_Wtime();
+   if(my_rank==0)
+    printf("\nTook %.3lf s to run\n",(tend-tstart));
 
    free(local_x);
    free(local_y);
    free(local_z);
-
-   if(my_rank==0)
-    printf("\nTook %d.%d s to run\n", (tend-tstart)/1000,(tend-tstart)%1000);
 
    MPI_Finalize();
 
@@ -323,23 +339,94 @@ void PrintTopDown_vector(
    }
 }  /* PrintTopDown_vector */
 
+/*-------------------------------------------------------------------
+ * Function:  Read_Scalar
+ * Purpose:   Read scalar to multiply vectors with.
+ * In args:   my_rank:    process rank in communicator
+ *            comm_sz:    number of processes in communicator
+ *            comm:       communicator containing all the processes
+ *                        calling Read_n
+ * Out args:  scalar:        global value of scalar
+ *
+ * Errors:    None
+ */
+void Read_Scalar(
+      int*      scalar        /* out */,
+      int       my_rank    /* in  */,
+      int       comm_sz    /* in  */,
+      MPI_Comm  comm       /* in  */) {
+   int local_ok = 1;
+   char *fname = "Read_Scalar";
+
+   if (my_rank == 0) {
+      printf("\nWhat's the number for the scalar?\n");
+      scanf("%d", scalar);
+   }
+   MPI_Bcast(scalar, 1, MPI_INT, 0, comm);
+}  /* Read_Scalar */
 
 /*-------------------------------------------------------------------
- * Function:  Parallel_vector_sum
- * Purpose:   Add a vector that's been distributed among the processes
- * In args:   local_x:  local storage of one of the vectors being added
- *            local_y:  local storage for the second vector being added
+ * Function:  Parallel_vector_scalar
+ * Purpose:   Multiply a vector by a scalar that's been distributed among the processes
+ * In args:   my_rank:  calling process' rank in comm
  *            local_n:  the number of components in local_x, local_y,
  *                      and local_z
- * Out arg:   local_z:  local storage for the sum of the two vectors
+ *            scalar: Scalar number to multiply vectors with
+ * Out arg:   local_arr:  local storage of the vector multiplied by the scalar
  */
-void Parallel_vector_sum(
-      double  local_x[]  /* in  */,
-      double  local_y[]  /* in  */,
-      double  local_z[]  /* out */,
-      int     local_n    /* in  */) {
+void Parallel_vector_scalar(
+      int     scalar,
+      double  local_arr[]  /* out */,
+      int     local_n    /* in  */,
+      int     my_rank) {
    int local_i;
 
    for (local_i = 0; local_i < local_n; local_i++)
-      local_z[local_i] = local_x[local_i] + local_y[local_i];
-}  /* Parallel_vector_sum */
+      local_arr[local_i] = local_arr[local_i] * scalar;
+      //local_arr[i] = local_arr[i]*scalar;
+}  /* Parallel_vector_scalar */
+
+/*-------------------------------------------------------------------
+ * Function:  Parallel_vector_dot
+ * Purpose:   Add a vector that's been distributed among the processes
+ * In args:   local_x:  local storage of one of the vectors being added
+ *            local_y:  local storage for the second vector being added
+ *            local_n:  the number of components in local_x and local_y
+ *            my_rank: calling process' rank in comm
+ * Out arg:   result:  local storage for the dot product of the two vectors
+ */
+void Parallel_vector_dot(
+      double  local_x[]  /* in  */,
+      double  local_y[]  /* in  */,
+      int     local_n    /* in  */,
+      int     my_rank    /* in  */,
+      int*    result     /* out */,
+      MPI_Comm  comm     /* in */) {
+   int local_sum = 0;
+   int local_i;
+   int local_ok = 1;
+   int* b = NULL;
+   char* fname = "Parallel_vector_dot";
+
+   for(local_i = 0;local_i < local_n;local_i++) {
+      local_sum += local_x[local_i] * local_y[local_i];
+   }
+   
+}  /* Parallel_vector_dot */
+
+/*-------------------------------------------------------------------
+ * Function:  Display_dot_result
+ * Purpose:   Add a vector that's been distributed among the processes
+ * In args:   local_x:  local storage of one of the vectors being added
+ *            local_y:  local storage for the second vector being added
+ *            local_n:  the number of components in local_x and local_y
+ *            my_rank: calling process' rank in comm
+ * Out arg:   result:  local storage for the dot product of the two vectors
+ */
+void Display_dot_result(
+      int     my_rank    /* in  */,
+      double result      /* in  */) {
+   if(my_rank == 0) {
+      printf("\nResult of dot product: %lf\n",result);
+   }
+}  /* Display_dot_result */
